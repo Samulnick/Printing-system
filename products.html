@@ -1,0 +1,291 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Products - PrintPro</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <!-- Navigation -->
+    <nav class="navbar">
+        <div class="nav-container">
+            <div class="logo">
+                <h1>PrintPro</h1>
+            </div>
+            <ul class="nav-menu">
+                <li><a href="index.html">Home</a></li>
+                <li><a href="products.html" class="active">Products</a></li>
+                <li><a href="about.html">About</a></li>
+                <li><a href="contact.html">Contact</a></li>
+            </ul>
+            <div class="hamburger">
+                <span></span>
+                <span></span>
+                <span></span>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Hero Section -->
+    <section class="page-hero">
+        <div class="page-hero-content">
+            <h1>Our Products</h1>
+            <p>Explore our comprehensive collection of printing solutions</p>
+        </div>
+    </section>
+
+    <!-- Products Section -->
+    <section class="products-section">
+        <div class="container">
+            <div class="products-wrapper">
+                <!-- Filters Sidebar -->
+                <aside class="filters-sidebar">
+                    <h3>Filter by Category</h3>
+                    <div id="category-filters" class="filter-list">
+                        <label class="filter-item">
+                            <input type="radio" name="category" value="" checked>
+                            <span>All Products</span>
+                        </label>
+                    </div>
+                    <hr>
+                    <h3>Filter by Price</h3>
+                    <div class="price-filter">
+                        <input type="range" id="priceRange" min="0" max="500000" value="500000">
+                        <p>Max Price: ₦<span id="priceValue">500000</span></p>
+                    </div>
+                    <button class="btn btn-small" onclick="resetFilters()">Reset Filters</button>
+                </aside>
+
+                <!-- Products Grid -->
+                <div class="products-main">
+                    <div class="products-header">
+                        <div class="sort-container">
+                            <label>Sort by:</label>
+                            <select id="sortBy" onchange="applySort()">
+                                <option value="newest">Newest</option>
+                                <option value="price-low">Price: Low to High</option>
+                                <option value="price-high">Price: High to Low</option>
+                                <option value="name">Name: A to Z</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div id="products-container" class="products-grid">
+                        <div class="loading">Loading products...</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Modal for Product Details -->
+    <div id="productModal" class="modal">
+        <div class="modal-content">
+            <span class="close">&times;</span>
+            <div id="modalBody" class="modal-body"></div>
+        </div>
+    </div>
+
+    <!-- Footer -->
+    <footer class="footer">
+        <div class="container">
+            <div class="footer-content">
+                <div class="footer-section">
+                    <h3>PrintPro</h3>
+                    <p>Your trusted printing partner</p>
+                </div>
+                <div class="footer-section">
+                    <h3>Quick Links</h3>
+                    <ul>
+                        <li><a href="index.html">Home</a></li>
+                        <li><a href="products.html">Products</a></li>
+                        <li><a href="about.html">About</a></li>
+                        <li><a href="contact.html">Contact</a></li>
+                    </ul>
+                </div>
+                <div class="footer-section">
+                    <h3>Contact Info</h3>
+                    <p>Email: info@printpro.com</p>
+                    <p>Phone: +234 (0) 123 456 789</p>
+                </div>
+            </div>
+            <div class="footer-bottom">
+                <p>&copy; 2026 PrintPro. All rights reserved.</p>
+            </div>
+        </div>
+    </footer>
+
+    <script src="script.js"></script>
+    <script>
+        let allProducts = [];
+        let filteredProducts = [];
+        let selectedCategory = '';
+        let maxPrice = 500000;
+
+        document.addEventListener('DOMContentLoaded', function() {
+            loadProducts();
+            loadCategories();
+            
+            // Price range event listener
+            document.getElementById('priceRange').addEventListener('input', function(e) {
+                maxPrice = e.target.value;
+                document.getElementById('priceValue').textContent = maxPrice;
+                filterProducts();
+            });
+
+            // Category filter
+            document.addEventListener('change', function(e) {
+                if (e.target.name === 'category') {
+                    selectedCategory = e.target.value;
+                    filterProducts();
+                }
+            });
+        });
+
+        function loadProducts() {
+            fetch('api/get-products.php')
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        allProducts = data.products;
+                        filteredProducts = [...allProducts];
+                        displayProducts(filteredProducts);
+                    }
+                })
+                .catch(error => console.error('Error:', error));
+        }
+
+        function loadCategories() {
+            fetch('api/get-categories.php')
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        const filterList = document.getElementById('category-filters');
+                        data.categories.forEach(cat => {
+                            const label = document.createElement('label');
+                            label.className = 'filter-item';
+                            label.innerHTML = `
+                                <input type="radio" name="category" value="${cat.id}">
+                                <span>${cat.name}</span>
+                            `;
+                            filterList.appendChild(label);
+                        });
+                    }
+                })
+                .catch(error => console.error('Error:', error));
+        }
+
+        function filterProducts() {
+            filteredProducts = allProducts.filter(product => {
+                const matchCategory = selectedCategory === '' || product.category_id == selectedCategory;
+                const matchPrice = product.price <= maxPrice;
+                return matchCategory && matchPrice;
+            });
+            displayProducts(filteredProducts);
+        }
+
+        function applySort() {
+            const sortBy = document.getElementById('sortBy').value;
+            let sorted = [...filteredProducts];
+
+            switch(sortBy) {
+                case 'price-low':
+                    sorted.sort((a, b) => parseFloat(a.price) - parseFloat(b.price));
+                    break;
+                case 'price-high':
+                    sorted.sort((a, b) => parseFloat(b.price) - parseFloat(a.price));
+                    break;
+                case 'name':
+                    sorted.sort((a, b) => a.product_name.localeCompare(b.product_name));
+                    break;
+                default:
+                    sorted.reverse();
+            }
+            displayProducts(sorted);
+        }
+
+        function displayProducts(products) {
+            const container = document.getElementById('products-container');
+            
+            if (products.length === 0) {
+                container.innerHTML = '<p class="no-products">No products found</p>';
+                return;
+            }
+
+            container.innerHTML = products.map(product => `
+                <div class="product-card">
+                    <div class="product-image">
+                        <img src="${product.image || 'img/placeholder.jpg'}" alt="${product.product_name}" onerror="this.src='img/placeholder.jpg'">
+                    </div>
+                    <div class="product-info">
+                        <h3>${product.product_name}</h3>
+                        <p class="category">${product.category_name || 'Uncategorized'}</p>
+                        <p class="price">₦${parseFloat(product.price).toLocaleString()}</p>
+                        <button class="btn btn-small" onclick="viewProductDetails(${product.id})">View Details</button>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function viewProductDetails(productId) {
+            fetch(`api/get-product.php?id=${productId}`)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        const product = data.product;
+                        const modal = document.getElementById('productModal');
+                        const modalBody = document.getElementById('modalBody');
+                        
+                        modalBody.innerHTML = `
+                            <div class="product-detail">
+                                <div class="detail-image">
+                                    <img src="${product.image || 'img/placeholder.jpg'}" alt="${product.product_name}" onerror="this.src='img/placeholder.jpg'">
+                                </div>
+                                <div class="detail-info">
+                                    <h2>${product.product_name}</h2>
+                                    <p class="category">${product.category_name || 'Uncategorized'}</p>
+                                    <p class="price-large">₦${parseFloat(product.price).toLocaleString()}</p>
+                                    <p class="description">${product.description || 'No description available'}</p>
+                                    <p class="date">Added: ${new Date(product.created_at).toLocaleDateString()}</p>
+                                    <button class="btn btn-primary" onclick="addToCart(${product.id}, '${product.product_name}', ${product.price})">Add to Cart</button>
+                                </div>
+                            </div>
+                        `;
+                        
+                        modal.style.display = 'block';
+                    }
+                })
+                .catch(error => console.error('Error:', error));
+        }
+
+        function resetFilters() {
+            selectedCategory = '';
+            maxPrice = 500000;
+            document.getElementById('priceRange').value = 500000;
+            document.getElementById('priceValue').textContent = 500000;
+            document.querySelector('input[value=""]').checked = true;
+            filteredProducts = [...allProducts];
+            displayProducts(filteredProducts);
+        }
+
+        function addToCart(id, name, price) {
+            alert(`Added "${name}" to cart!\n\nPrice: ₦${price.toLocaleString()}`);
+            // Cart functionality can be extended here
+        }
+
+        // Modal close
+        const modal = document.getElementById('productModal');
+        const closeBtn = document.querySelector('.close');
+        
+        closeBtn.onclick = function() {
+            modal.style.display = 'none';
+        }
+
+        window.onclick = function(event) {
+            if (event.target == modal) {
+                modal.style.display = 'none';
+            }
+        }
+    </script>
+</body>
+</html>
