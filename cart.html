@@ -211,6 +211,7 @@
             width: 100%;
             height: 100%;
             background-color: rgba(0, 0, 0, 0.4);
+            overflow-y: auto;
         }
 
         .modal-content {
@@ -300,6 +301,68 @@
             margin: 15px 0;
             font-weight: bold;
             word-break: break-all;
+        }
+
+        .loading-spinner {
+            display: none;
+            text-align: center;
+            padding: 20px;
+        }
+
+        .spinner {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #3498db;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .error-message {
+            background-color: #f8d7da;
+            color: #721c24;
+            padding: 12px;
+            border-radius: 4px;
+            margin-bottom: 15px;
+            display: none;
+        }
+
+        .success-notification {
+            background-color: #d4edda;
+            color: #155724;
+            padding: 12px;
+            border-radius: 4px;
+            margin-bottom: 15px;
+            display: none;
+        }
+
+        .cart-notification {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            padding: 15px 20px;
+            border-radius: 4px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+            z-index: 1000;
+            animation: slideIn 0.3s ease-out;
+            color: white;
+        }
+
+        @keyframes slideIn {
+            from {
+                transform: translateX(400px);
+                opacity: 0;
+            }
+            to {
+                transform: translateX(0);
+                opacity: 1;
+            }
         }
 
         @media (max-width: 768px) {
@@ -410,6 +473,14 @@
             <div id="checkout-form-container">
                 <div class="modal-header">Checkout</div>
 
+                <div class="error-message" id="errorMessage"></div>
+                <div class="success-notification" id="successMessage"></div>
+
+                <div class="loading-spinner" id="loadingSpinner">
+                    <div class="spinner"></div>
+                    <p>Processing your order...</p>
+                </div>
+
                 <form id="checkoutForm" onsubmit="submitOrder(event)">
                     <div class="form-group">
                         <label for="fullName">Full Name *</label>
@@ -460,7 +531,7 @@
                         </label>
                     </div>
 
-                    <button type="submit" class="checkout-btn" style="margin-top: 0;">Complete Order</button>
+                    <button type="submit" class="checkout-btn" style="margin-top: 0;" id="submitBtn">Complete Order</button>
                 </form>
             </div>
 
@@ -541,14 +612,14 @@
                         <h3>${item.name}</h3>
                         <p class="item-price">₦${parseFloat(item.price).toLocaleString()}</p>
                         <div class="quantity-controls">
-                            <button onclick="decreaseQuantity(${index})">−</button>
+                            <button type="button" onclick="decreaseQuantity(${index})">−</button>
                             <input type="number" value="${item.quantity}" min="1" onchange="updateQuantity(${index}, this.value)">
-                            <button onclick="increaseQuantity(${index})">+</button>
+                            <button type="button" onclick="increaseQuantity(${index})">+</button>
                         </div>
                     </div>
                     <div class="item-actions">
                         <div class="item-total">₦${(parseFloat(item.price) * item.quantity).toLocaleString()}</div>
-                        <button class="remove-btn" onclick="removeItem(${index})">Remove</button>
+                        <button class="remove-btn" type="button" onclick="removeItem(${index})">Remove</button>
                     </div>
                 </div>
             `).join('');
@@ -624,38 +695,82 @@
             document.getElementById('checkout-form-container').style.display = 'block';
             document.getElementById('order-success-container').classList.remove('show');
             document.getElementById('checkoutForm').reset();
+            hideMessages();
+        }
+
+        function showError(message) {
+            const errorDiv = document.getElementById('errorMessage');
+            errorDiv.textContent = message;
+            errorDiv.style.display = 'block';
+            setTimeout(() => {
+                errorDiv.style.display = 'none';
+            }, 5000);
+        }
+
+        function showSuccess(message) {
+            const successDiv = document.getElementById('successMessage');
+            successDiv.textContent = message;
+            successDiv.style.display = 'block';
+        }
+
+        function hideMessages() {
+            document.getElementById('errorMessage').style.display = 'none';
+            document.getElementById('successMessage').style.display = 'none';
         }
 
         function submitOrder(event) {
             event.preventDefault();
 
-            const formData = {
-                fullName: document.getElementById('fullName').value,
-                email: document.getElementById('email').value,
-                phone: document.getElementById('phone').value,
-                address: document.getElementById('address').value,
-                city: document.getElementById('city').value,
-                state: document.getElementById('state').value,
-                paymentMethod: document.getElementById('paymentMethod').value,
-                items: cart,
-                subtotal: parseFloat(document.getElementById('subtotal').textContent.replace(/,/g, '')),
-                tax: parseFloat(document.getElementById('tax').textContent.replace(/,/g, '')),
-                total: parseFloat(document.getElementById('total').textContent.replace(/,/g, ''))
-            };
+            // Validate cart
+            if (cart.length === 0) {
+                showError('Your cart is empty. Please add items before checkout.');
+                return;
+            }
 
-            // Generate Order ID
-            const orderId = 'ORD-' + Date.now() + '-' + Math.random().toString(36).substr(2, 9).toUpperCase();
+            // Show loading spinner
+            document.getElementById('loadingSpinner').style.display = 'block';
+            document.getElementById('submitBtn').disabled = true;
 
-            // Display success screen
-            document.getElementById('orderIdDisplay').textContent = orderId;
-            document.getElementById('checkout-form-container').style.display = 'none';
-            document.getElementById('order-success-container').classList.add('show');
+            const formData = new FormData();
+            formData.append('action', 'create_order');
+            formData.append('fullName', document.getElementById('fullName').value);
+            formData.append('email', document.getElementById('email').value);
+            formData.append('phone', document.getElementById('phone').value);
+            formData.append('address', document.getElementById('address').value);
+            formData.append('city', document.getElementById('city').value);
+            formData.append('state', document.getElementById('state').value);
+            formData.append('paymentMethod', document.getElementById('paymentMethod').value);
+            formData.append('cart', JSON.stringify(cart));
+            formData.append('subtotal', parseFloat(document.getElementById('subtotal').textContent.replace(/,/g, '')));
+            formData.append('tax', parseFloat(document.getElementById('tax').textContent.replace(/,/g, '')));
+            formData.append('shipping', 500);
+            formData.append('total', parseFloat(document.getElementById('total').textContent.replace(/,/g, '')));
 
-            // Log order (in real app, would send to server)
-            console.log('Order submitted:', {
-                orderId: orderId,
-                orderData: formData,
-                timestamp: new Date().toISOString()
+            // Send AJAX request
+            fetch('api/checkout.php', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                document.getElementById('loadingSpinner').style.display = 'none';
+                document.getElementById('submitBtn').disabled = false;
+
+                if (data.success) {
+                    // Display success screen
+                    document.getElementById('orderIdDisplay').textContent = data.order_id;
+                    document.getElementById('checkout-form-container').style.display = 'none';
+                    document.getElementById('order-success-container').classList.add('show');
+                    showSuccess('Order saved successfully!');
+                } else {
+                    showError(data.message || 'An error occurred. Please try again.');
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                document.getElementById('loadingSpinner').style.display = 'none';
+                document.getElementById('submitBtn').disabled = false;
+                showError('Network error. Please check your connection and try again.');
             });
         }
 
